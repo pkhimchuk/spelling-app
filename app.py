@@ -38,9 +38,15 @@ st.markdown(
         letter-spacing: 4px !important;
     }
 
-    /* Force column items to maintain size and wrap gracefully on small mobile screens */
+    /* Prevent Streamlit from squeezing columns into a single line on mobile screens */
+    div[data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+    }
+    
     div[data-testid="column"] {
         min-width: 18% !important;
+        max-width: 18% !important;
         flex: 1 1 18% !important;
     }
 
