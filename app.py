@@ -1,0 +1,341 @@
+import json
+import os
+import random
+from datetime import datetime
+
+import gspread
+import pandas as pd
+import streamlit as st
+from google.oauth2.service_account import Credentials
+
+# --- Page Configuration ---
+st.set_page_config(
+    page_title="Spelling Practice App", page_icon="✏️", layout="centered"
+)
+
+# Custom CSS: Reduce top padding, compact overall layout, and enlarge review text
+st.markdown(
+    """
+  <style>
+  /* Reduce top whitespace and constrain max width for a compact feel */
+  .block-container {
+      padding-top: 1rem !important;
+      padding-bottom: 1.5rem !important;
+      max-width: 650px !important;
+  }
+
+  /* Hide top header padding gap */
+  div[data-testid="stHeader"] {
+      height: 0px !important;
+  }
+
+  /* Large input text box */
+  div[data-testid="stTextInput"] input {
+      font-size: 36px !important;
+      font-weight: bold !important;
+      text-align: center !important;
+      height: 70px !important;
+      letter-spacing: 4px !important;
+  }
+
+  /* Larger review screen text */
+  .review-user-spelled {
+      font-size: 26px !important;
+      font-weight: 600 !important;
+      margin-top: 12px !important;
+      margin-bottom: 8px !important;
+  }
+
+  .review-correct-spelled {
+      font-size: 28px !important;
+      font-weight: bold !important;
+      color: #d32f2f !important;
+      margin-bottom: 12px !important;
+  }
+
+  .review-correct-success {
+      font-size: 28px !important;
+      font-weight: bold !important;
+      color: #2e7d32 !important;
+      margin-bottom: 12px !important;
+  }
+  </style>
+""",
+    unsafe_allow_html=True,
+)
+
+SHEET_ID = "1Un0T57SniiumOozglDfeeYnGMyuZk0F71DlADSDTrZU"
+
+
+# --- Google Sheets Authentication & Data Loading ---
+@st.cache_resource
+def get_gspread_client():
+    """Authenticates with Google Sheets using Streamlit Secrets or local credentials."""
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    try:
+        if "gcp_service_account" in st.secrets:
+            creds_dict = json.loads(st.secrets["gcp_service_account"])
+            creds = Credentials.from_service_account_info(
+                creds_dict, scopes=scopes
+            )
+            return gspread.authorize(creds)
+    except Exception:
+        pass
+
+    creds_path = os.path.join(os.path.dirname(__file__), "credentials.json")
+    creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
+    return gspread.authorize(creds)
+
+
+@st.cache_data(ttl=60)
+def load_spelling_data():
+    """Loads the words table from Google Sheets."""
+    client = get_gspread_client()
+    sheet = client.open_by_key(SHEET_ID).worksheet("spelling_words")
+    df = pd.DataFrame(sheet.get_all_records())
+    df.columns = [col.strip() for col in df.columns]
+    return df
+
+
+def append_result_to_sheet(batch_id, word, user_input, is_correct):
+    """Appends student attempt into the 'Results' sheet tab."""
+    try:
+        client = get_gspread_client()
+        results_sheet = client.open_by_key(SHEET_ID).worksheet("Results")
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        results_sheet.append_row(
+            [now_str, str(batch_id), word, user_input, str(is_correct)]
+        )
+    except Exception as e:
+        st.error(f"Failed to record result to Google Sheets: {e}")
+
+
+# --- Text-to-Speech Helper ---
+def trigger_speech(text):
+    """Uses Browser Web Speech API to read text aloud automatically."""
+    clean_text = text.replace("'", "\\'").replace('"', '\\"')
+    js_code = f"""
+        <script>
+            if ('speechSynthesis' in window) {{
+                window.speechSynthesis.cancel();
+                var msg = new SpeechSynthesisUtterance("{clean_text}");
+                msg.rate = 0.85;
+                msg.lang = 'en-US';
+                window.speechSynthesis.speak(msg);
+            }}
+        </script>
+    """
+    st.components.v1.html(js_code, height=0, width=0)
+
+
+# --- Visual Animation Helper for Incorrect Selection ---
+def trigger_poop_rain():
+    """Launches animated floating poop emojis when a selection is incorrect."""
+    js_code = """
+        <script>
+            (function() {
+                var parentDoc = window.parent.document;
+                var body = parentDoc.body;
+
+                var overlay = parentDoc.createElement('div');
+                overlay.style.position = 'fixed';
+                overlay.style.top = '0';
+                overlay.style.left = '0';
+                overlay.style.width = '100vw';
+                overlay.style.height = '100vh';
+                overlay.style.pointerEvents = 'none';
+                overlay.style.zIndex = '999999';
+                overlay.style.overflow = 'hidden';
+
+                for (var i = 0; i < 25; i++) {
+                    (function(index) {
+                        var poop = parentDoc.createElement('div');
+                        poop.innerText = '💩';
+                        poop.style.position = 'absolute';
+                        poop.style.fontSize = (Math.random() * 25 + 30) + 'px';
+                        poop.style.left = (Math.random() * 90 + 5) + 'vw';
+                        poop.style.bottom = '-60px';
+                        poop.style.transition = 'transform ' + (2 + Math.random() * 1.5) + 's ease-out, opacity 2.5s ease-out';
+
+                        overlay.appendChild(poop);
+
+                        setTimeout(function() {
+                            var xShift = (Math.random() - 0.5) * 300;
+                            var yShift = -110;
+                            var rot = (Math.random() - 0.5) * 720;
+                            poop.style.transform = 'translate(' + xShift + 'px, ' + yShift + 'vh) rotate(' + rot + 'deg)';
+                            poop.style.opacity = '0';
+                        }, index * 50);
+                    })(i);
+                }
+
+                body.appendChild(overlay);
+                setTimeout(function() {
+                    overlay.remove();
+                }, 4000);
+            })();
+        </script>
+    """
+    st.components.v1.html(js_code, height=0, width=0)
+
+
+# --- Load Data ---
+try:
+    df = load_spelling_data()
+except Exception as e:
+    st.error(
+        f"Error connecting to Google Sheets. Check credentials/permissions. ({e})"
+    )
+    st.stop()
+
+# --- App UI & Logic ---
+st.title("✏️ Spelling Practice App")
+
+# 1. Batch Selection
+unique_batches = sorted(df["Batch"].astype(str).unique())
+selected_batch = st.selectbox("Select Batch ID:", unique_batches)
+
+# Reset state when switching batches
+if (
+        "current_batch" not in st.session_state
+        or st.session_state.current_batch != selected_batch
+):
+    st.session_state.current_batch = selected_batch
+    batch_df = df[df["Batch"].astype(str) == selected_batch]
+    st.session_state.word_queue = batch_df.to_dict("records")
+    random.shuffle(st.session_state.word_queue)
+    st.session_state.current_word_data = None
+    st.session_state.user_input = ""
+    st.session_state.used_indices = []
+    st.session_state.submitted = False
+    st.session_state.is_correct = False
+
+
+def next_word():
+    """Selects the next word in random order, loops indefinitely, and prepares letters."""
+    if not st.session_state.word_queue:
+        batch_df = df[df["Batch"].astype(str) == st.session_state.current_batch]
+        st.session_state.word_queue = batch_df.to_dict("records")
+        random.shuffle(st.session_state.word_queue)
+
+    st.session_state.current_word_data = st.session_state.word_queue.pop(0)
+    word = str(st.session_state.current_word_data["Word"]).strip()
+
+    letters = list(enumerate(word.lower()))
+    random.shuffle(letters)
+    st.session_state.scrambled_letters = letters
+    st.session_state.used_indices = []
+    st.session_state.user_input = ""
+    st.session_state.submitted = False
+    st.session_state.is_correct = False
+    st.session_state.should_speak = True
+
+
+# Initialize first word
+if st.session_state.current_word_data is None:
+    next_word()
+
+current_item = st.session_state.current_word_data
+target_word = str(current_item["Word"]).strip()
+phrase = f"Your next word is {target_word}, as in {current_item['AsIn']}"
+
+# Automatically trigger speech playback on new word
+if st.session_state.get("should_speak", False):
+    trigger_speech(phrase)
+    st.session_state.should_speak = False
+
+# Manual audio replay button
+if st.button("🔊 Read Word Again", use_container_width=True):
+    trigger_speech(phrase)
+
+st.markdown("---")
+
+# ---------------------------------------------------------
+# PHASE 1: INPUT PHASE (User taps letters and submits)
+# ---------------------------------------------------------
+if not st.session_state.submitted:
+    st.subheader("Your Input:")
+    st.text_input(
+        label="Spelled word",
+        value=st.session_state.user_input,
+        disabled=True,
+        label_visibility="collapsed",
+    )
+
+    st.write("**Tap letters to spell:**")
+    cols = st.columns(max(len(st.session_state.scrambled_letters), 1))
+
+    for idx, (orig_idx, char) in enumerate(st.session_state.scrambled_letters):
+        is_used = orig_idx in st.session_state.used_indices
+        with cols[idx]:
+            if st.button(
+                    char.upper(),
+                    key=f"btn_{orig_idx}_{idx}",
+                    disabled=is_used,
+                    use_container_width=True,
+            ):
+                st.session_state.user_input += char
+                st.session_state.used_indices.append(orig_idx)
+                st.rerun()
+
+    col_erase, col_submit = st.columns(2)
+    with col_erase:
+        if st.button("⌫ Erase", use_container_width=True):
+            if st.session_state.user_input:
+                st.session_state.user_input = st.session_state.user_input[:-1]
+                if st.session_state.used_indices:
+                    st.session_state.used_indices.pop()
+                st.rerun()
+
+    with col_submit:
+        if st.button(
+                "✅ Submit",
+                disabled=len(st.session_state.user_input) == 0,
+                use_container_width=True,
+        ):
+            st.session_state.submitted = True
+            is_correct = (
+                    st.session_state.user_input.strip().lower()
+                    == target_word.lower()
+            )
+            st.session_state.is_correct = is_correct
+
+            append_result_to_sheet(
+                selected_batch,
+                target_word,
+                st.session_state.user_input,
+                is_correct,
+            )
+            st.rerun()
+
+# ---------------------------------------------------------
+# PHASE 2: REVIEW PHASE (Shows feedback & pauses for Next Word)
+# ---------------------------------------------------------
+else:
+    if st.session_state.is_correct:
+        st.balloons()
+        st.success("🎉 **Awesome job! That is spelled correctly!**")
+        st.markdown(
+            f"<div class='review-correct-success'>Word: {target_word}</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        trigger_poop_rain()
+        st.error("❌ **Not quite!**")
+        st.markdown(
+            f"<div class='review-user-spelled'>You spelled: <code>{st.session_state.user_input}</code></div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f"<div class='review-correct-spelled'>Correct spelling: {target_word}</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("---")
+
+    if st.button("➡️ Next Word", type="primary", use_container_width=True):
+        next_word()
+        st.rerun()
