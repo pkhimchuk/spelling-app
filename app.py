@@ -8,7 +8,6 @@ import pandas as pd
 import streamlit as st
 from google.oauth2.service_account import Credentials
 
-
 # =========================================================
 # PAGE CONFIGURATION
 # =========================================================
@@ -19,7 +18,6 @@ st.set_page_config(
     layout="centered",
 )
 
-
 # =========================================================
 # CUSTOM CSS
 # =========================================================
@@ -28,9 +26,9 @@ st.markdown(
     """
     <style>
 
-    /* -----------------------------------------------------
-       MAIN APP CONTAINER
-       ----------------------------------------------------- */
+    /* =====================================================
+       GENERAL APP
+       ===================================================== */
 
     .block-container {
         padding-top: 1rem !important;
@@ -39,13 +37,13 @@ st.markdown(
     }
 
     div[data-testid="stHeader"] {
-        height: 0px !important;
+        height: 0 !important;
     }
 
 
-    /* -----------------------------------------------------
+    /* =====================================================
        SPELLING INPUT
-       ----------------------------------------------------- */
+       ===================================================== */
 
     div[data-testid="stTextInput"] input {
         font-size: 28px !important;
@@ -56,9 +54,9 @@ st.markdown(
     }
 
 
-    /* -----------------------------------------------------
-       SCORE METRIC
-       ----------------------------------------------------- */
+    /* =====================================================
+       SCORE
+       ===================================================== */
 
     div[data-testid="stMetric"] {
         background-color: #1e293b !important;
@@ -73,114 +71,182 @@ st.markdown(
     div[data-testid="stMetric"] label,
     div[data-testid="stMetric"] [data-testid="stMetricValue"],
     div[data-testid="stMetric"] [data-testid="stMetricDelta"] {
-        color: #ffffff !important;
+        color: white !important;
         font-weight: bold !important;
     }
 
 
     /* =====================================================
-       LETTER GRID
+       CUSTOM LETTER KEYBOARD
+
+       IMPORTANT:
+       This keyboard does NOT use st.columns().
+       It is a genuine CSS grid.
        ===================================================== */
 
-    /*
-       IMPORTANT:
+    .spelling-keyboard-wrapper {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        box-sizing: border-box;
+        padding: 4px 0 8px 0;
+    }
 
-       We only modify the container with key="letter_grid".
-       This means the CSS does NOT interfere with the
-       Erase / Submit buttons or other Streamlit columns.
-    */
+    .spelling-keyboard {
+        display: grid;
 
-    .st-key-letter_grid div[data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
+        /* EXACTLY 5 TILES PER ROW */
+        grid-template-columns: repeat(5, 52px);
 
-        width: 100% !important;
+        gap: 8px;
 
-        gap: 6px !important;
-        margin-bottom: 6px !important;
+        justify-content: center;
+        align-content: start;
+
+        width: max-content;
+        max-width: 100%;
+
+        box-sizing: border-box;
     }
 
 
-    /*
-       Each letter column gets exactly 1/5 of the available
-       width.
+    /* =====================================================
+       INDIVIDUAL LETTER TILE
+       ===================================================== */
 
-       This prevents Streamlit's mobile column behaviour from
-       making the buttons unnecessarily wide.
-    */
-
-    .st-key-letter_grid
-    div[data-testid="stHorizontalBlock"]
-    > div[data-testid="column"] {
-
-        flex: 0 0 calc((100% - 24px) / 5) !important;
-
-        width: calc((100% - 24px) / 5) !important;
-
-        min-width: 0 !important;
-
-        max-width: calc((100% - 24px) / 5) !important;
-
-        padding: 0 !important;
-    }
-
-
-    /* -----------------------------------------------------
-       LETTER BUTTONS
-       ----------------------------------------------------- */
-
-    .st-key-letter_grid button {
-
-        width: 100% !important;
-
-        min-width: 0 !important;
+    .spelling-key {
+        width: 52px !important;
+        min-width: 52px !important;
+        max-width: 52px !important;
 
         height: 48px !important;
-
         min-height: 48px !important;
+        max-height: 48px !important;
 
+        box-sizing: border-box !important;
+
+        margin: 0 !important;
         padding: 0 !important;
 
-        font-size: 18px !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
 
-        font-weight: 700 !important;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
 
-        border-radius: 8px !important;
+        background: #f8fafc;
+        color: #0f172a;
 
-        border: 1px solid #cbd5e1 !important;
+        font-family: inherit;
+        font-size: 18px;
+        font-weight: 700;
 
-        box-shadow: 0 2px 0 #94a3b8 !important;
+        box-shadow: 0 2px 0 #94a3b8;
 
-        background-color: #f8fafc !important;
+        cursor: pointer;
 
-        color: #0f172a !important;
+        -webkit-tap-highlight-color: transparent;
 
-        overflow: hidden !important;
+        user-select: none;
+
+        transition:
+            transform 0.05s ease,
+            box-shadow 0.05s ease,
+            background-color 0.1s ease;
+    }
+
+    .spelling-key:hover {
+        background: #ffffff;
+    }
+
+    .spelling-key:active {
+        transform: translateY(2px);
+        box-shadow: none;
     }
 
 
-    /*
-       Used letters become faded.
-    */
+    /* =====================================================
+       USED LETTER
+       ===================================================== */
 
-    .st-key-letter_grid button:disabled {
+    .spelling-key.used {
+        background: #e2e8f0;
+        color: #94a3b8;
 
-        background-color: #e2e8f0 !important;
+        border-color: #cbd5e1;
 
-        color: #94a3b8 !important;
+        box-shadow: none;
 
-        border-color: #cbd5e1 !important;
+        opacity: 0.35;
 
-        box-shadow: none !important;
-
-        opacity: 0.35 !important;
+        cursor: default;
     }
 
 
-    /* -----------------------------------------------------
+    /* =====================================================
+       MOBILE
+
+       Still 5 columns.
+       Tiles remain compact.
+       ===================================================== */
+
+    @media (max-width: 600px) {
+
+        .block-container {
+            padding-left: 12px !important;
+            padding-right: 12px !important;
+        }
+
+        .spelling-keyboard {
+            grid-template-columns: repeat(5, 48px);
+            gap: 6px;
+        }
+
+        .spelling-key {
+            width: 48px !important;
+            min-width: 48px !important;
+            max-width: 48px !important;
+
+            height: 46px !important;
+            min-height: 46px !important;
+            max-height: 46px !important;
+
+            font-size: 17px;
+        }
+    }
+
+
+    /* =====================================================
+       VERY SMALL PHONES
+
+       5 x 44px still fits comfortably.
+       ===================================================== */
+
+    @media (max-width: 350px) {
+
+        .spelling-keyboard {
+            grid-template-columns: repeat(5, 44px);
+            gap: 5px;
+        }
+
+        .spelling-key {
+            width: 44px !important;
+            min-width: 44px !important;
+            max-width: 44px !important;
+
+            height: 44px !important;
+            min-height: 44px !important;
+            max-height: 44px !important;
+
+            font-size: 16px;
+        }
+    }
+
+
+    /* =====================================================
        REVIEW SCREEN
-       ----------------------------------------------------- */
+       ===================================================== */
 
     .review-user-spelled {
         font-size: 22px !important;
@@ -203,45 +269,10 @@ st.markdown(
         margin-bottom: 10px !important;
     }
 
-
-    /* -----------------------------------------------------
-       MOBILE ADJUSTMENTS
-       ----------------------------------------------------- */
-
-    @media (max-width: 600px) {
-
-        .block-container {
-            padding-left: 0.75rem !important;
-            padding-right: 0.75rem !important;
-        }
-
-        .st-key-letter_grid div[data-testid="stHorizontalBlock"] {
-            gap: 5px !important;
-        }
-
-        .st-key-letter_grid
-        div[data-testid="stHorizontalBlock"]
-        > div[data-testid="column"] {
-
-            flex-basis: calc((100% - 20px) / 5) !important;
-
-            width: calc((100% - 20px) / 5) !important;
-
-            max-width: calc((100% - 20px) / 5) !important;
-        }
-
-        .st-key-letter_grid button {
-            height: 46px !important;
-            min-height: 46px !important;
-            font-size: 17px !important;
-        }
-    }
-
     </style>
     """,
     unsafe_allow_html=True,
 )
-
 
 # =========================================================
 # GOOGLE SHEETS
@@ -252,7 +283,6 @@ SHEET_ID = "1Un0T57SniiumOozglDfeeYnGMyuZk0F71DlADSDTrZU"
 
 @st.cache_resource
 def get_gspread_client():
-
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
@@ -261,7 +291,6 @@ def get_gspread_client():
     try:
 
         if "gcp_service_account" in st.secrets:
-
             creds_dict = json.loads(
                 st.secrets["gcp_service_account"]
             )
@@ -276,8 +305,7 @@ def get_gspread_client():
     except Exception:
         pass
 
-
-    # Local development fallback
+    # Local development
 
     creds_path = os.path.join(
         os.path.dirname(__file__),
@@ -294,7 +322,6 @@ def get_gspread_client():
 
 @st.cache_data(ttl=60)
 def load_spelling_data():
-
     client = get_gspread_client()
 
     sheet = client.open_by_key(
@@ -314,12 +341,11 @@ def load_spelling_data():
 
 
 def append_result_to_sheet(
-    batch_id,
-    word,
-    user_input,
-    is_correct,
+        batch_id,
+        word,
+        user_input,
+        is_correct,
 ):
-
     try:
 
         client = get_gspread_client()
@@ -350,11 +376,10 @@ def append_result_to_sheet(
 
 
 # =========================================================
-# TEXT-TO-SPEECH
+# TEXT TO SPEECH
 # =========================================================
 
 def render_audio_player(text):
-
     clean_text = (
         text
         .replace("\\", "\\\\")
@@ -364,66 +389,66 @@ def render_audio_player(text):
     )
 
     html_code = f"""
-        <div style="
-            text-align: center;
-            margin-bottom: 10px;
-        ">
+    <div style="
+        text-align: center;
+        margin-bottom: 10px;
+    ">
 
-            <button
-                id="speak-btn"
-                style="
-                    width: 100%;
-                    background-color: #ff4b4b;
-                    color: white;
-                    border: none;
-                    padding: 12px 16px;
-                    font-size: 18px;
-                    font-weight: bold;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                "
-            >
-                🔊 Read Word Aloud
-            </button>
+        <button
+            id="speak-btn"
+            style="
+                width: 100%;
+                background-color: #ff4b4b;
+                color: white;
+                border: none;
+                padding: 12px 16px;
+                font-size: 18px;
+                font-weight: bold;
+                border-radius: 8px;
+                cursor: pointer;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            "
+        >
+            🔊 Read Word Aloud
+        </button>
 
-        </div>
+    </div>
 
-        <script>
+    <script>
 
-            function speakWord() {{
+    function speakWord() {{
 
-                if ('speechSynthesis' in window) {{
+        if ('speechSynthesis' in window) {{
 
-                    window.speechSynthesis.cancel();
+            window.speechSynthesis.cancel();
 
-                    var msg =
-                        new SpeechSynthesisUtterance(
-                            '{clean_text}'
-                        );
-
-                    msg.rate = 0.85;
-                    msg.lang = 'en-US';
-
-                    window.speechSynthesis.speak(msg);
-                }}
-            }}
-
-            document
-                .getElementById('speak-btn')
-                .addEventListener(
-                    'click',
-                    speakWord
+            var msg =
+                new SpeechSynthesisUtterance(
+                    '{clean_text}'
                 );
 
-            window.addEventListener(
-                'load',
-                function() {{
-                    speakWord();
-                }}
-            );
+            msg.rate = 0.85;
+            msg.lang = 'en-US';
 
-        </script>
+            window.speechSynthesis.speak(msg);
+        }}
+    }}
+
+    document
+        .getElementById('speak-btn')
+        .addEventListener(
+            'click',
+            speakWord
+        );
+
+    window.addEventListener(
+        'load',
+        function() {{
+            speakWord();
+        }}
+    );
+
+    </script>
     """
 
     st.components.v1.html(
@@ -437,94 +462,93 @@ def render_audio_player(text):
 # =========================================================
 
 def trigger_poop_rain():
-
     js_code = """
-        <script>
+    <script>
 
-        (function() {
+    (function() {
 
-            var parentDoc =
-                window.parent.document;
+        var parentDoc =
+            window.parent.document;
 
-            var body =
-                parentDoc.body;
+        var body =
+            parentDoc.body;
 
-            var overlay =
-                parentDoc.createElement('div');
+        var overlay =
+            parentDoc.createElement('div');
 
-            overlay.style.position = 'fixed';
-            overlay.style.top = '0';
-            overlay.style.left = '0';
-            overlay.style.width = '100vw';
-            overlay.style.height = '100vh';
-            overlay.style.pointerEvents = 'none';
-            overlay.style.zIndex = '999999';
-            overlay.style.overflow = 'hidden';
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100vw';
+        overlay.style.height = '100vh';
+        overlay.style.pointerEvents = 'none';
+        overlay.style.zIndex = '999999';
+        overlay.style.overflow = 'hidden';
 
-            for (var i = 0; i < 20; i++) {
+        for (var i = 0; i < 20; i++) {
 
-                (function(index) {
+            (function(index) {
 
-                    var poop =
-                        parentDoc.createElement('div');
+                var poop =
+                    parentDoc.createElement('div');
 
-                    poop.innerText = '💩';
+                poop.innerText = '💩';
 
-                    poop.style.position = 'absolute';
+                poop.style.position = 'absolute';
 
-                    poop.style.fontSize =
-                        (Math.random() * 20 + 25) + 'px';
+                poop.style.fontSize =
+                    (Math.random() * 20 + 25) + 'px';
 
-                    poop.style.left =
-                        (Math.random() * 90 + 5) + 'vw';
+                poop.style.left =
+                    (Math.random() * 90 + 5) + 'vw';
 
-                    poop.style.bottom = '-60px';
+                poop.style.bottom = '-60px';
 
-                    poop.style.transition =
-                        'transform ' +
-                        (2 + Math.random() * 1.5) +
-                        's ease-out, opacity 2.5s ease-out';
+                poop.style.transition =
+                    'transform ' +
+                    (2 + Math.random() * 1.5) +
+                    's ease-out, opacity 2.5s ease-out';
 
-                    overlay.appendChild(poop);
+                overlay.appendChild(poop);
 
-                    setTimeout(function() {
+                setTimeout(function() {
 
-                        var xShift =
-                            (Math.random() - 0.5) * 250;
+                    var xShift =
+                        (Math.random() - 0.5) * 250;
 
-                        var yShift = -110;
+                    var yShift = -110;
 
-                        var rot =
-                            (Math.random() - 0.5) * 720;
+                    var rot =
+                        (Math.random() - 0.5) * 720;
 
-                        poop.style.transform =
-                            'translate(' +
-                            xShift +
-                            'px, ' +
-                            yShift +
-                            'vh) rotate(' +
-                            rot +
-                            'deg)';
+                    poop.style.transform =
+                        'translate(' +
+                        xShift +
+                        'px, ' +
+                        yShift +
+                        'vh) rotate(' +
+                        rot +
+                        'deg)';
 
-                        poop.style.opacity = '0';
+                    poop.style.opacity = '0';
 
-                    }, index * 50);
+                }, index * 50);
 
-                })(i);
-            }
+            })(i);
+        }
 
-            body.appendChild(overlay);
+        body.appendChild(overlay);
 
-            setTimeout(
-                function() {
-                    overlay.remove();
-                },
-                4000
-            );
+        setTimeout(
+            function() {
+                overlay.remove();
+            },
+            4000
+        );
 
-        })();
+    })();
 
-        </script>
+    </script>
     """
 
     st.components.v1.html(
@@ -551,13 +575,11 @@ except Exception as e:
 
     st.stop()
 
-
 # =========================================================
-# APP TITLE
+# TITLE
 # =========================================================
 
 st.title("✏️ Spelling Practice")
-
 
 # =========================================================
 # BATCH SELECTION
@@ -574,22 +596,20 @@ selected_batch = st.selectbox(
     unique_batches,
 )
 
-
 # =========================================================
-# INITIALISE / RESET SESSION
+# INITIALISE SESSION
 # =========================================================
 
 if (
-    "current_batch" not in st.session_state
-    or st.session_state.current_batch != selected_batch
+        "current_batch" not in st.session_state
+        or st.session_state.current_batch != selected_batch
 ):
-
     st.session_state.current_batch = selected_batch
 
     batch_df = df[
         df["Batch"].astype(str)
         == selected_batch
-    ]
+        ]
 
     st.session_state.word_queue = (
         batch_df.to_dict("records")
@@ -613,7 +633,6 @@ if (
 
     st.session_state.total_count = 0
 
-
 # =========================================================
 # SCORE
 # =========================================================
@@ -630,16 +649,11 @@ correct = st.session_state.get(
 
 if total > 0:
 
-    percentage = int(
-        correct / total * 100
-    )
-
-    pct = f"{percentage}%"
+    pct = f"{int(correct / total * 100)}%"
 
 else:
 
     pct = "0%"
-
 
 st.metric(
     label="Session Score",
@@ -653,13 +667,11 @@ st.metric(
 # =========================================================
 
 def next_word():
-
     if not st.session_state.word_queue:
-
         batch_df = df[
             df["Batch"].astype(str)
             == st.session_state.current_batch
-        ]
+            ]
 
         st.session_state.word_queue = (
             batch_df.to_dict("records")
@@ -669,26 +681,24 @@ def next_word():
             st.session_state.word_queue
         )
 
-
     st.session_state.current_word_data = (
         st.session_state.word_queue.pop(0)
     )
-
 
     word = str(
         st.session_state.current_word_data["Word"]
     ).strip()
 
-
-    # Create indexed letters so duplicate letters
-    # can be selected independently.
+    # Keep the original position of each letter.
+    #
+    # This is important for words with duplicate
+    # letters such as APPLE.
 
     letters = list(
         enumerate(word.lower())
     )
 
     random.shuffle(letters)
-
 
     st.session_state.scrambled_letters = letters
 
@@ -706,9 +716,7 @@ def next_word():
 # =========================================================
 
 if st.session_state.current_word_data is None:
-
     next_word()
-
 
 # =========================================================
 # CURRENT WORD
@@ -727,7 +735,6 @@ phrase = (
     f"as in {current_item['AsIn']}"
 )
 
-
 # =========================================================
 # AUDIO
 # =========================================================
@@ -736,21 +743,19 @@ render_audio_player(
     phrase
 )
 
-
 st.markdown("---")
 
-
 # =========================================================
-# PHASE 1 — INPUT
+# INPUT PHASE
 # =========================================================
 
 if not st.session_state.submitted:
 
     st.subheader("Your Input:")
 
-
-    # The text field is display-only.
-    # The actual input is built by pressing letters.
+    # -----------------------------------------------------
+    # DISPLAY USER'S SPELLING
+    # -----------------------------------------------------
 
     st.text_input(
         label="Spelled word",
@@ -759,74 +764,104 @@ if not st.session_state.submitted:
         label_visibility="collapsed",
     )
 
-
     st.write("**Tap letters to spell:**")
 
-
-    # -----------------------------------------------------
-    # LETTER GRID
-    # -----------------------------------------------------
-
-    NUM_COLS = 5
+    # =====================================================
+    # LETTER KEYBOARD
+    #
+    # This is deliberately NOT made with st.columns().
+    #
+    # We create one Streamlit button per letter inside
+    # a fixed-width container.
+    # =====================================================
 
     scrambled = (
         st.session_state.scrambled_letters
     )
 
+    NUM_COLS = 5
 
+    # -----------------------------------------------------
     # IMPORTANT:
-    # The key creates the CSS scope:
-    # .st-key-letter_grid
+    #
+    # We use a fixed-width Streamlit container.
+    # Each row is still made with Streamlit buttons, but
+    # CSS forces the buttons themselves to be 52px/48px.
+    #
+    # No global stHorizontalBlock rules are used.
+    # -----------------------------------------------------
 
-    with st.container(
-        key="letter_grid"
-    ):
+    keyboard_html = """
+    <div class="spelling-keyboard-wrapper">
+        <div class="spelling-keyboard">
+    """
 
-        for row_start in range(
+    # We don't put the buttons themselves into the HTML
+    # because Streamlit needs to receive the clicks.
+    #
+    # The HTML below is only the visual wrapper.
+
+    st.markdown(
+        keyboard_html,
+        unsafe_allow_html=True,
+    )
+
+    # -----------------------------------------------------
+    # Render rows.
+    #
+    # Each row has up to 5 letters.
+    # -----------------------------------------------------
+
+    for row_start in range(
             0,
             len(scrambled),
             NUM_COLS,
-        ):
+    ):
 
-            chunk = scrambled[
-                row_start:
-                row_start + NUM_COLS
-            ]
+        chunk = scrambled[
+            row_start:
+            row_start + NUM_COLS
+        ]
 
+        # Use Streamlit columns only INSIDE this controlled
+        # keyboard area.
+        #
+        # The CSS below forces each one to remain 52px.
+        #
+        # Empty columns are added so the last row doesn't
+        # stretch.
 
-            cols = st.columns(
-                NUM_COLS,
-                gap="small",
-            )
+        cols = st.columns(
+            NUM_COLS,
+            gap=None,
+        )
 
+        for col_idx in range(NUM_COLS):
 
-            for col_idx, (
-                orig_idx,
-                char,
-            ) in enumerate(chunk):
+            with cols[col_idx]:
 
-                is_used = (
-                    orig_idx
-                    in st.session_state.used_indices
-                )
+                if col_idx < len(chunk):
 
+                    orig_idx, char = chunk[col_idx]
 
-                with cols[col_idx]:
+                    is_used = (
+                            orig_idx
+                            in st.session_state.used_indices
+                    )
 
                     if st.button(
-                        char.upper(),
+                            char.upper(),
 
-                        key=(
-                            f"btn_"
-                            f"{orig_idx}_"
-                            f"{row_start + col_idx}"
-                        ),
+                            key=(
+                                    f"letter_"
+                                    f"{orig_idx}_"
+                                    f"{row_start + col_idx}"
+                            ),
 
-                        disabled=is_used,
+                            disabled=is_used,
 
-                        use_container_width=True,
+                            use_container_width=True,
                     ):
-
                         st.session_state.user_input += char
 
                         st.session_state.used_indices.append(
@@ -835,14 +870,20 @@ if not st.session_state.submitted:
 
                         st.rerun()
 
+    # Close the visual wrapper.
 
-    # Space below letter grid
+    st.markdown(
+        """
+        </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.markdown(
         "<div style='margin-top: 10px;'></div>",
         unsafe_allow_html=True,
     )
-
 
     # =====================================================
     # ERASE / SUBMIT
@@ -853,12 +894,11 @@ if not st.session_state.submitted:
         gap="small",
     )
 
-
     with col_erase:
 
         if st.button(
-            "⌫ Erase",
-            use_container_width=True,
+                "⌫ Erase",
+                use_container_width=True,
         ):
 
             if st.session_state.user_input:
@@ -868,50 +908,42 @@ if not st.session_state.submitted:
                 )
 
                 if st.session_state.used_indices:
-
                     st.session_state.used_indices.pop()
 
                 st.rerun()
 
-
     with col_submit:
 
         if st.button(
-            "✅ Submit",
+                "✅ Submit",
 
-            disabled=(
-                len(
-                    st.session_state.user_input
-                ) == 0
-            ),
+                disabled=(
+                        len(
+                            st.session_state.user_input
+                        ) == 0
+                ),
 
-            use_container_width=True,
+                use_container_width=True,
         ):
 
             st.session_state.submitted = True
 
-
             is_correct = (
-                st.session_state.user_input
-                .strip()
-                .lower()
-                ==
-                target_word.lower()
+                    st.session_state.user_input
+                    .strip()
+                    .lower()
+                    ==
+                    target_word.lower()
             )
-
 
             st.session_state.is_correct = (
                 is_correct
             )
 
-
             st.session_state.total_count += 1
 
-
             if is_correct:
-
                 st.session_state.correct_count += 1
-
 
             append_result_to_sheet(
                 selected_batch,
@@ -920,18 +952,17 @@ if not st.session_state.submitted:
                 is_correct,
             )
 
-
             st.rerun()
 
 
 # =========================================================
-# PHASE 2 — REVIEW
+# REVIEW PHASE
 # =========================================================
 
 else:
 
     # -----------------------------------------------------
-    # CORRECT
+    # CORRECT ANSWER
     # -----------------------------------------------------
 
     if st.session_state.is_correct:
@@ -954,7 +985,7 @@ else:
 
 
     # -----------------------------------------------------
-    # INCORRECT
+    # INCORRECT ANSWER
     # -----------------------------------------------------
 
     else:
@@ -984,20 +1015,17 @@ else:
             unsafe_allow_html=True,
         )
 
-
     st.markdown("---")
-
 
     # -----------------------------------------------------
     # NEXT WORD
     # -----------------------------------------------------
 
     if st.button(
-        "➡️ Next Word",
-        type="primary",
-        use_container_width=True,
+            "➡️ Next Word",
+            type="primary",
+            use_container_width=True,
     ):
-
         next_word()
 
         st.rerun()
