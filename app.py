@@ -13,53 +13,53 @@ st.set_page_config(
     page_title="Spelling Practice App", page_icon="✏️", layout="centered"
 )
 
-# Custom CSS: Reduce top padding, compact overall layout, and enlarge review text
+# Custom CSS: Reduce top padding, compact layout, and enlarge key text fields
 st.markdown(
     """
-  <style>
-  /* Reduce top whitespace and constrain max width for a compact feel */
-  .block-container {
-      padding-top: 1rem !important;
-      padding-bottom: 1.5rem !important;
-      max-width: 650px !important;
-  }
+    <style>
+    /* Reduce top whitespace and constrain max width for a compact feel */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 1.5rem !important;
+        max-width: 650px !important;
+    }
 
-  /* Hide top header padding gap */
-  div[data-testid="stHeader"] {
-      height: 0px !important;
-  }
+    /* Hide top header padding gap */
+    div[data-testid="stHeader"] {
+        height: 0px !important;
+    }
 
-  /* Large input text box */
-  div[data-testid="stTextInput"] input {
-      font-size: 36px !important;
-      font-weight: bold !important;
-      text-align: center !important;
-      height: 70px !important;
-      letter-spacing: 4px !important;
-  }
+    /* Large, high-visibility text input box */
+    div[data-testid="stTextInput"] input {
+        font-size: 36px !important;
+        font-weight: bold !important;
+        text-align: center !important;
+        height: 70px !important;
+        letter-spacing: 4px !important;
+    }
 
-  /* Larger review screen text */
-  .review-user-spelled {
-      font-size: 26px !important;
-      font-weight: 600 !important;
-      margin-top: 12px !important;
-      margin-bottom: 8px !important;
-  }
+    /* Larger review screen text */
+    .review-user-spelled {
+        font-size: 26px !important;
+        font-weight: 600 !important;
+        margin-top: 12px !important;
+        margin-bottom: 8px !important;
+    }
 
-  .review-correct-spelled {
-      font-size: 28px !important;
-      font-weight: bold !important;
-      color: #d32f2f !important;
-      margin-bottom: 12px !important;
-  }
+    .review-correct-spelled {
+        font-size: 28px !important;
+        font-weight: bold !important;
+        color: #d32f2f !important;
+        margin-bottom: 12px !important;
+    }
 
-  .review-correct-success {
-      font-size: 28px !important;
-      font-weight: bold !important;
-      color: #2e7d32 !important;
-      margin-bottom: 12px !important;
-  }
-  </style>
+    .review-correct-success {
+        font-size: 28px !important;
+        font-weight: bold !important;
+        color: #2e7d32 !important;
+        margin-bottom: 12px !important;
+    }
+    </style>
 """,
     unsafe_allow_html=True,
 )
@@ -113,22 +113,47 @@ def append_result_to_sheet(batch_id, word, user_input, is_correct):
         st.error(f"Failed to record result to Google Sheets: {e}")
 
 
-# --- Text-to-Speech Helper ---
-def trigger_speech(text):
-    """Uses Browser Web Speech API to read text aloud automatically."""
+# --- Text-to-Speech Helper (iPad / iOS Native Click Listener) ---
+def render_audio_player(text):
+    """Renders an interactive audio button that executes speech synthesis natively on touch."""
     clean_text = text.replace("'", "\\'").replace('"', '\\"')
-    js_code = f"""
+
+    html_code = f"""
+        <div style="text-align: center; margin-bottom: 10px;">
+            <button id="speak-btn" style="
+                width: 100%;
+                background-color: #ff4b4b;
+                color: white;
+                border: none;
+                padding: 14px 20px;
+                font-size: 20px;
+                font-weight: bold;
+                border-radius: 8px;
+                cursor: pointer;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            ">
+                🔊 Read Word Aloud
+            </button>
+        </div>
         <script>
-            if ('speechSynthesis' in window) {{
-                window.speechSynthesis.cancel();
-                var msg = new SpeechSynthesisUtterance("{clean_text}");
-                msg.rate = 0.85;
-                msg.lang = 'en-US';
-                window.speechSynthesis.speak(msg);
+            function speakWord() {{
+                if ('speechSynthesis' in window) {{
+                    window.speechSynthesis.cancel();
+                    var msg = new SpeechSynthesisUtterance('{clean_text}');
+                    msg.rate = 0.85;
+                    msg.lang = 'en-US';
+                    window.speechSynthesis.speak(msg);
+                }}
             }}
+
+            document.getElementById('speak-btn').addEventListener('click', speakWord);
+
+            window.addEventListener('load', function() {{
+                speakWord();
+            }});
         </script>
     """
-    st.components.v1.html(js_code, height=0, width=0)
+    st.components.v1.html(html_code, height=65)
 
 
 # --- Visual Animation Helper for Incorrect Selection ---
@@ -231,7 +256,6 @@ def next_word():
     st.session_state.user_input = ""
     st.session_state.submitted = False
     st.session_state.is_correct = False
-    st.session_state.should_speak = True
 
 
 # Initialize first word
@@ -242,14 +266,8 @@ current_item = st.session_state.current_word_data
 target_word = str(current_item["Word"]).strip()
 phrase = f"Your next word is {target_word}, as in {current_item['AsIn']}"
 
-# Automatically trigger speech playback on new word
-if st.session_state.get("should_speak", False):
-    trigger_speech(phrase)
-    st.session_state.should_speak = False
-
-# Manual audio replay button
-if st.button("🔊 Read Word Again", use_container_width=True):
-    trigger_speech(phrase)
+# Render iPad-compatible native audio trigger button
+render_audio_player(phrase)
 
 st.markdown("---")
 
