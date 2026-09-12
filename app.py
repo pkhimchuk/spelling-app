@@ -13,7 +13,7 @@ st.set_page_config(
     page_title="Spelling Practice App", page_icon="✏️", layout="centered"
 )
 
-# Custom CSS: Reduce top padding, compact layout, and enlarge key text fields
+# Custom CSS: Reduce top padding, compact layout, enlarge key text fields, and enforce mobile grid wrapping
 st.markdown(
     """
     <style>
@@ -36,6 +36,12 @@ st.markdown(
         text-align: center !important;
         height: 70px !important;
         letter-spacing: 4px !important;
+    }
+
+    /* Force column items to maintain size and wrap gracefully on small mobile screens */
+    div[data-testid="column"] {
+        min-width: 18% !important;
+        flex: 1 1 18% !important;
     }
 
     /* Larger review screen text */
