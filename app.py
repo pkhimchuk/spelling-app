@@ -13,41 +13,42 @@ st.set_page_config(
     page_title="Spelling Practice App", page_icon="✏️", layout="centered"
 )
 
-# Custom CSS: Reduce top padding, enlarge inputs, and enforce accessible metric colors & mobile layout
+# Custom CSS: Mobile-first responsive tweaks, high contrast metric, and compact buttons
 st.markdown(
     """
     <style>
-    /* Reduce top whitespace and constrain max width for a compact feel */
+    /* Compact top padding and constrained viewport width */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 1.5rem !important;
-        max-width: 650px !important;
+        max-width: 550px !important;
     }
 
-    /* Hide top header padding gap */
     div[data-testid="stHeader"] {
         height: 0px !important;
     }
 
-    /* Large, high-visibility text input box */
+    /* Target word display box */
     div[data-testid="stTextInput"] input {
-        font-size: 36px !important;
+        font-size: 30px !important;
         font-weight: bold !important;
         text-align: center !important;
-        height: 70px !important;
-        letter-spacing: 4px !important;
+        height: 55px !important;
+        letter-spacing: 3px !important;
     }
 
-    /* --- SCORE METRIC HIGH-CONTRAST STYLING --- */
+    /* --- SCORE METRIC STYLING --- */
     div[data-testid="stMetric"] {
         background-color: #1e293b !important;
-        padding: 10px 14px !important;
-        border-radius: 10px !important;
+        padding: 8px 12px !important;
+        border-radius: 8px !important;
         text-align: center !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        margin-top: 4px !important;
+        margin-bottom: 12px !important;
     }
 
-    /* Enforce clear white text for metric labels, numbers, and percentage deltas */
+    /* Force high-contrast white text for score labels and values */
     div[data-testid="stMetric"] label,
     div[data-testid="stMetric"] [data-testid="stMetricValue"],
     div[data-testid="stMetric"] [data-testid="stMetricDelta"] {
@@ -55,49 +56,35 @@ st.markdown(
         font-weight: bold !important;
     }
 
-    /* --- MOBILE GRID OVERRIDES --- */
-    div[data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        gap: 6px !important;
+    /* --- COMPACT BUTTONS (PREVENT OVERFLOW) --- */
+    div[data-testid="stColumn"] button {
+        font-size: 18px !important;
+        font-weight: bold !important;
+        height: 44px !important;
+        padding: 2px !important;
+        border-radius: 6px !important;
+    }
+
+    /* Review Screen typography */
+    .review-user-spelled {
+        font-size: 22px !important;
+        font-weight: 600 !important;
+        margin-top: 8px !important;
         margin-bottom: 6px !important;
     }
 
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-        flex: 1 1 18% !important;
-        width: 18% !important;
-        min-width: 0 !important;
-    }
-
-    div[data-testid="column"] button {
-        font-size: 22px !important;
-        font-weight: bold !important;
-        height: 54px !important;
-        padding: 0px !important;
-        border-radius: 8px !important;
-    }
-
-    /* Larger review screen text */
-    .review-user-spelled {
-        font-size: 26px !important;
-        font-weight: 600 !important;
-        margin-top: 12px !important;
-        margin-bottom: 8px !important;
-    }
-
     .review-correct-spelled {
-        font-size: 28px !important;
+        font-size: 24px !important;
         font-weight: bold !important;
         color: #d32f2f !important;
-        margin-bottom: 12px !important;
+        margin-bottom: 10px !important;
     }
 
     .review-correct-success {
-        font-size: 28px !important;
+        font-size: 24px !important;
         font-weight: bold !important;
         color: #2e7d32 !important;
-        margin-bottom: 12px !important;
+        margin-bottom: 10px !important;
     }
     </style>
 """,
@@ -110,7 +97,6 @@ SHEET_ID = "1Un0T57SniiumOozglDfeeYnGMyuZk0F71DlADSDTrZU"
 # --- Google Sheets Authentication & Data Loading ---
 @st.cache_resource
 def get_gspread_client():
-    """Authenticates with Google Sheets using Streamlit Secrets or local credentials."""
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
@@ -132,7 +118,6 @@ def get_gspread_client():
 
 @st.cache_data(ttl=60)
 def load_spelling_data():
-    """Loads the words table from Google Sheets."""
     client = get_gspread_client()
     sheet = client.open_by_key(SHEET_ID).worksheet("spelling_words")
     df = pd.DataFrame(sheet.get_all_records())
@@ -141,7 +126,6 @@ def load_spelling_data():
 
 
 def append_result_to_sheet(batch_id, word, user_input, is_correct):
-    """Appends student attempt into the 'Results' sheet tab."""
     try:
         client = get_gspread_client()
         results_sheet = client.open_by_key(SHEET_ID).worksheet("Results")
@@ -153,11 +137,9 @@ def append_result_to_sheet(batch_id, word, user_input, is_correct):
         st.error(f"Failed to record result to Google Sheets: {e}")
 
 
-# --- Text-to-Speech Helper (iPad / iOS Native Click Listener) ---
+# --- Text-to-Speech Helper ---
 def render_audio_player(text):
-    """Renders an interactive audio button that executes speech synthesis natively on touch."""
     clean_text = text.replace("'", "\\'").replace('"', '\\"')
-
     html_code = f"""
         <div style="text-align: center; margin-bottom: 10px;">
             <button id="speak-btn" style="
@@ -165,8 +147,8 @@ def render_audio_player(text):
                 background-color: #ff4b4b;
                 color: white;
                 border: none;
-                padding: 14px 20px;
-                font-size: 20px;
+                padding: 12px 16px;
+                font-size: 18px;
                 font-weight: bold;
                 border-radius: 8px;
                 cursor: pointer;
@@ -185,26 +167,22 @@ def render_audio_player(text):
                     window.speechSynthesis.speak(msg);
                 }}
             }}
-
             document.getElementById('speak-btn').addEventListener('click', speakWord);
-
             window.addEventListener('load', function() {{
                 speakWord();
             }});
         </script>
     """
-    st.components.v1.html(html_code, height=65)
+    st.components.v1.html(html_code, height=60)
 
 
 # --- Visual Animation Helper for Incorrect Selection ---
 def trigger_poop_rain():
-    """Launches animated floating poop emojis when a selection is incorrect."""
     js_code = """
         <script>
             (function() {
                 var parentDoc = window.parent.document;
                 var body = parentDoc.body;
-
                 var overlay = parentDoc.createElement('div');
                 overlay.style.position = 'fixed';
                 overlay.style.top = '0';
@@ -215,20 +193,19 @@ def trigger_poop_rain():
                 overlay.style.zIndex = '999999';
                 overlay.style.overflow = 'hidden';
 
-                for (var i = 0; i < 25; i++) {
+                for (var i = 0; i < 20; i++) {
                     (function(index) {
                         var poop = parentDoc.createElement('div');
                         poop.innerText = '💩';
                         poop.style.position = 'absolute';
-                        poop.style.fontSize = (Math.random() * 25 + 30) + 'px';
+                        poop.style.fontSize = (Math.random() * 20 + 25) + 'px';
                         poop.style.left = (Math.random() * 90 + 5) + 'vw';
                         poop.style.bottom = '-60px';
                         poop.style.transition = 'transform ' + (2 + Math.random() * 1.5) + 's ease-out, opacity 2.5s ease-out';
-
                         overlay.appendChild(poop);
 
                         setTimeout(function() {
-                            var xShift = (Math.random() - 0.5) * 300;
+                            var xShift = (Math.random() - 0.5) * 250;
                             var yShift = -110;
                             var rot = (Math.random() - 0.5) * 720;
                             poop.style.transform = 'translate(' + xShift + 'px, ' + yShift + 'vh) rotate(' + rot + 'deg)';
@@ -238,9 +215,7 @@ def trigger_poop_rain():
                 }
 
                 body.appendChild(overlay);
-                setTimeout(function() {
-                    overlay.remove();
-                }, 4000);
+                setTimeout(function() { overlay.remove(); }, 4000);
             })();
         </script>
     """
@@ -256,15 +231,11 @@ except Exception as e:
     )
     st.stop()
 
-# --- App UI & Logic ---
-st.title("✏️ Spelling Practice App")
+st.title("✏️ Spelling Practice")
 
-# 1. Batch Selection & Session Score Display
+# --- Batch Selection ---
 unique_batches = sorted(df["Batch"].astype(str).unique())
-
-col_batch, col_score = st.columns([3, 2])
-with col_batch:
-    selected_batch = st.selectbox("Select Batch ID:", unique_batches)
+selected_batch = st.selectbox("Select Batch ID:", unique_batches)
 
 # Reset state when switching batches
 if (
@@ -283,15 +254,14 @@ if (
     st.session_state.correct_count = 0
     st.session_state.total_count = 0
 
-with col_score:
-    total = st.session_state.get("total_count", 0)
-    correct = st.session_state.get("correct_count", 0)
-    pct = f"{int(correct / total * 100)}%" if total > 0 else "0%"
-    st.metric(label="Session Score", value=f"{correct} / {total}", delta=pct)
+# --- Score Metric on its own line below Batch Selection ---
+total = st.session_state.get("total_count", 0)
+correct = st.session_state.get("correct_count", 0)
+pct = f"{int(correct / total * 100)}%" if total > 0 else "0%"
+st.metric(label="Session Score", value=f"{correct} / {total}", delta=pct)
 
 
 def next_word():
-    """Selects the next word in random order, loops indefinitely, and prepares letters."""
     if not st.session_state.word_queue:
         batch_df = df[df["Batch"].astype(str) == st.session_state.current_batch]
         st.session_state.word_queue = batch_df.to_dict("records")
@@ -317,13 +287,12 @@ current_item = st.session_state.current_word_data
 target_word = str(current_item["Word"]).strip()
 phrase = f"Your next word is {target_word}, as in {current_item['AsIn']}"
 
-# Render iPad-compatible native audio trigger button
 render_audio_player(phrase)
 
 st.markdown("---")
 
 # ---------------------------------------------------------
-# PHASE 1: INPUT PHASE (User taps letters and submits)
+# PHASE 1: INPUT PHASE
 # ---------------------------------------------------------
 if not st.session_state.submitted:
     st.subheader("Your Input:")
@@ -336,7 +305,7 @@ if not st.session_state.submitted:
 
     st.write("**Tap letters to spell:**")
 
-    # Render letters in 5-column chunked rows
+    # Display scramble buttons in rows of 5
     NUM_COLS = 5
     scrambled = st.session_state.scrambled_letters
 
@@ -380,7 +349,6 @@ if not st.session_state.submitted:
             )
             st.session_state.is_correct = is_correct
 
-            # Update score counter
             st.session_state.total_count += 1
             if is_correct:
                 st.session_state.correct_count += 1
@@ -394,7 +362,7 @@ if not st.session_state.submitted:
             st.rerun()
 
 # ---------------------------------------------------------
-# PHASE 2: REVIEW PHASE (Shows feedback & pauses for Next Word)
+# PHASE 2: REVIEW PHASE
 # ---------------------------------------------------------
 else:
     if st.session_state.is_correct:
