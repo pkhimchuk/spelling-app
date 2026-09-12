@@ -13,11 +13,10 @@ st.set_page_config(
     page_title="Spelling Practice App", page_icon="✏️", layout="centered"
 )
 
-# Custom CSS: Force grid/row behavior on mobile touch screens
+# Custom CSS: Forces horizontal tiles on mobile and styles the score/inputs cleanly
 st.markdown(
     """
     <style>
-    /* Compact viewport container */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 1.5rem !important;
@@ -28,7 +27,6 @@ st.markdown(
         height: 0px !important;
     }
 
-    /* Target word display box */
     div[data-testid="stTextInput"] input {
         font-size: 28px !important;
         font-weight: bold !important;
@@ -55,52 +53,65 @@ st.markdown(
         font-weight: bold !important;
     }
 
-    /* --- FORCE MOBILE ROW LAYOUT & PREVENT VERTICAL STACKING --- */
-    div[data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        justify-content: space-between !important;
-        gap: 4px !important;
-        margin-bottom: 6px !important;
-        width: 100% !important;
-    }
-
-    /* Override Streamlit's mobile responsive collapse rule */
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"],
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] > div {
-        flex: 1 1 0px !important;
-        min-width: 0px !important;
-        width: 0px !important;
+    /* --- BULLETPROOF MOBILE HORIZONTAL TILE GRID --- */
+    @media (max-width: 1200px) {
+        div[data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 4px !important;
+            width: 100% !important;
+        }
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+            flex: 1 1 auto !important;
+            width: auto !important;
+            min-width: 0px !important;
+        }
     }
 
     /* --- KEYCAP TILE BUTTONS --- */
     div[data-testid="stHorizontalBlock"] button {
         font-size: 18px !important;
         font-weight: 700 !important;
-        height: 46px !important;
-        min-height: 46px !important;
+        height: 48px !important;
+        min-height: 48px !important;
         width: 100% !important;
         padding: 0 !important;
-        border-radius: 6px !important;
+        border-radius: 8px !important;
         border: 1px solid #cbd5e1 !important;
         box-shadow: 0 2px 0 #94a3b8 !important;
         background-color: #f8fafc !important;
         color: #0f172a !important;
     }
 
-    /* Disabled state for tapped tiles */
     div[data-testid="stHorizontalBlock"] button:disabled {
         background-color: #e2e8f0 !important;
         color: #94a3b8 !important;
         border-color: #cbd5e1 !important;
         box-shadow: none !important;
-        opacity: 0.3 !important;
+        opacity: 0.35 !important;
     }
 
-    /* Action buttons styling (Erase / Submit) */
-    div[data-testid="column"] > div > button[kind="secondary"] {
-        height: 48px !important;
+    /* Review Screen typography */
+    .review-user-spelled {
+        font-size: 22px !important;
+        font-weight: 600 !important;
+        margin-top: 8px !important;
+        margin-bottom: 6px !important;
+    }
+
+    .review-correct-spelled {
+        font-size: 24px !important;
+        font-weight: bold !important;
+        color: #d32f2f !important;
+        margin-bottom: 10px !important;
+    }
+
+    .review-correct-success {
+        font-size: 24px !important;
+        font-weight: bold !important;
+        color: #2e7d32 !important;
+        margin-bottom: 10px !important;
     }
     </style>
 """,
@@ -249,11 +260,10 @@ except Exception as e:
 
 st.title("✏️ Spelling Practice")
 
-# --- Batch Selection ---
+# --- Batch Selection & Score ---
 unique_batches = sorted(df["Batch"].astype(str).unique())
 selected_batch = st.selectbox("Select Batch ID:", unique_batches)
 
-# Reset state when switching batches
 if (
         "current_batch" not in st.session_state
         or st.session_state.current_batch != selected_batch
@@ -270,7 +280,6 @@ if (
     st.session_state.correct_count = 0
     st.session_state.total_count = 0
 
-# --- Score Metric on its own line below Batch Selection ---
 total = st.session_state.get("total_count", 0)
 correct = st.session_state.get("correct_count", 0)
 pct = f"{int(correct / total * 100)}%" if total > 0 else "0%"
@@ -295,7 +304,6 @@ def next_word():
     st.session_state.is_correct = False
 
 
-# Initialize first word
 if st.session_state.current_word_data is None:
     next_word()
 
@@ -321,7 +329,6 @@ if not st.session_state.submitted:
 
     st.write("**Tap letters to spell:**")
 
-    # Display scramble buttons in 5-column grid rows
     NUM_COLS = 5
     scrambled = st.session_state.scrambled_letters
 
