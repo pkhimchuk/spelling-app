@@ -13,7 +13,7 @@ st.set_page_config(
     page_title="Spelling Practice App", page_icon="✏️", layout="centered"
 )
 
-# Custom CSS: Reduce top padding, compact layout, enlarge key text fields, and enforce mobile grid wrapping
+# Custom CSS: Reduce top padding, enlarge inputs, and enforce accessible metric colors & mobile layout
 st.markdown(
     """
     <style>
@@ -38,16 +38,44 @@ st.markdown(
         letter-spacing: 4px !important;
     }
 
-    /* Prevent Streamlit from squeezing columns into a single line on mobile screens */
-    div[data-testid="stHorizontalBlock"] {
-        flex-wrap: wrap !important;
-        gap: 6px !important;
+    /* --- SCORE METRIC HIGH-CONTRAST STYLING --- */
+    div[data-testid="stMetric"] {
+        background-color: #1e293b !important;
+        padding: 10px 14px !important;
+        border-radius: 10px !important;
+        text-align: center !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
     }
-    
-    div[data-testid="column"] {
-        min-width: 18% !important;
-        max-width: 18% !important;
+
+    /* Enforce clear white text for metric labels, numbers, and percentage deltas */
+    div[data-testid="stMetric"] label,
+    div[data-testid="stMetric"] [data-testid="stMetricValue"],
+    div[data-testid="stMetric"] [data-testid="stMetricDelta"] {
+        color: #ffffff !important;
+        font-weight: bold !important;
+    }
+
+    /* --- MOBILE GRID OVERRIDES --- */
+    div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 6px !important;
+        margin-bottom: 6px !important;
+    }
+
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
         flex: 1 1 18% !important;
+        width: 18% !important;
+        min-width: 0 !important;
+    }
+
+    div[data-testid="column"] button {
+        font-size: 22px !important;
+        font-weight: bold !important;
+        height: 54px !important;
+        padding: 0px !important;
+        border-radius: 8px !important;
     }
 
     /* Larger review screen text */
@@ -231,9 +259,12 @@ except Exception as e:
 # --- App UI & Logic ---
 st.title("✏️ Spelling Practice App")
 
-# 1. Batch Selection
+# 1. Batch Selection & Session Score Display
 unique_batches = sorted(df["Batch"].astype(str).unique())
-selected_batch = st.selectbox("Select Batch ID:", unique_batches)
+
+col_batch, col_score = st.columns([3, 2])
+with col_batch:
+    selected_batch = st.selectbox("Select Batch ID:", unique_batches)
 
 # Reset state when switching batches
 if (
@@ -249,6 +280,14 @@ if (
     st.session_state.used_indices = []
     st.session_state.submitted = False
     st.session_state.is_correct = False
+    st.session_state.correct_count = 0
+    st.session_state.total_count = 0
+
+with col_score:
+    total = st.session_state.get("total_count", 0)
+    correct = st.session_state.get("correct_count", 0)
+    pct = f"{int(correct / total * 100)}%" if total > 0 else "0%"
+    st.metric(label="Session Score", value=f"{correct} / {total}", delta=pct)
 
 
 def next_word():
@@ -297,7 +336,7 @@ if not st.session_state.submitted:
 
     st.write("**Tap letters to spell:**")
 
-    # Render letters in a multi-row grid (5 columns max per row for mobile readability)
+    # Render letters in 5-column chunked rows
     NUM_COLS = 5
     scrambled = st.session_state.scrambled_letters
 
@@ -340,6 +379,11 @@ if not st.session_state.submitted:
                     == target_word.lower()
             )
             st.session_state.is_correct = is_correct
+
+            # Update score counter
+            st.session_state.total_count += 1
+            if is_correct:
+                st.session_state.correct_count += 1
 
             append_result_to_sheet(
                 selected_batch,
