@@ -13,15 +13,15 @@ st.set_page_config(
     page_title="Spelling Practice App", page_icon="✏️", layout="centered"
 )
 
-# Custom CSS: Mobile-first responsive tweaks, high contrast metric, and compact buttons
+# Custom CSS: Forces horizontal row layout for columns on mobile and styles letters as keycap tiles
 st.markdown(
     """
     <style>
-    /* Compact top padding and constrained viewport width */
+    /* Compact viewport padding */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 1.5rem !important;
-        max-width: 550px !important;
+        max-width: 500px !important;
     }
 
     div[data-testid="stHeader"] {
@@ -30,10 +30,10 @@ st.markdown(
 
     /* Target word display box */
     div[data-testid="stTextInput"] input {
-        font-size: 30px !important;
+        font-size: 28px !important;
         font-weight: bold !important;
         text-align: center !important;
-        height: 55px !important;
+        height: 50px !important;
         letter-spacing: 3px !important;
     }
 
@@ -48,7 +48,6 @@ st.markdown(
         margin-bottom: 12px !important;
     }
 
-    /* Force high-contrast white text for score labels and values */
     div[data-testid="stMetric"] label,
     div[data-testid="stMetric"] [data-testid="stMetricValue"],
     div[data-testid="stMetric"] [data-testid="stMetricDelta"] {
@@ -56,13 +55,42 @@ st.markdown(
         font-weight: bold !important;
     }
 
-    /* --- COMPACT BUTTONS (PREVENT OVERFLOW) --- */
-    div[data-testid="stColumn"] button {
-        font-size: 18px !important;
-        font-weight: bold !important;
-        height: 44px !important;
-        padding: 2px !important;
-        border-radius: 6px !important;
+    /* --- PREVENT COLUMN STACKING ON MOBILE --- */
+    div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 6px !important;
+        margin-bottom: 6px !important;
+    }
+
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        width: 100% !important;
+    }
+
+    /* --- LETTER TILE STYLING --- */
+    div[data-testid="stHorizontalBlock"] button {
+        font-size: 20px !important;
+        font-weight: 700 !important;
+        height: 48px !important;
+        min-height: 48px !important;
+        padding: 0 !important;
+        border-radius: 8px !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: 0 2px 0 #94a3b8 !important;
+        background-color: #f8fafc !important;
+        color: #0f172a !important;
+    }
+
+    /* Disabled tile state (used letters) */
+    div[data-testid="stHorizontalBlock"] button:disabled {
+        background-color: #e2e8f0 !important;
+        color: #94a3b8 !important;
+        border-color: #cbd5e1 !important;
+        box-shadow: none !important;
+        opacity: 0.4 !important;
     }
 
     /* Review Screen typography */
@@ -305,7 +333,7 @@ if not st.session_state.submitted:
 
     st.write("**Tap letters to spell:**")
 
-    # Display scramble buttons in rows of 5
+    # Display scramble buttons in 5-column grid rows
     NUM_COLS = 5
     scrambled = st.session_state.scrambled_letters
 
