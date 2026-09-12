@@ -284,20 +284,28 @@ if not st.session_state.submitted:
     )
 
     st.write("**Tap letters to spell:**")
-    cols = st.columns(max(len(st.session_state.scrambled_letters), 1))
 
-    for idx, (orig_idx, char) in enumerate(st.session_state.scrambled_letters):
-        is_used = orig_idx in st.session_state.used_indices
-        with cols[idx]:
-            if st.button(
-                    char.upper(),
-                    key=f"btn_{orig_idx}_{idx}",
-                    disabled=is_used,
-                    use_container_width=True,
-            ):
-                st.session_state.user_input += char
-                st.session_state.used_indices.append(orig_idx)
-                st.rerun()
+    # Render letters in a multi-row grid (5 columns max per row for mobile readability)
+    NUM_COLS = 5
+    scrambled = st.session_state.scrambled_letters
+
+    for row_start in range(0, len(scrambled), NUM_COLS):
+        chunk = scrambled[row_start: row_start + NUM_COLS]
+        cols = st.columns(NUM_COLS)
+        for col_idx, (orig_idx, char) in enumerate(chunk):
+            is_used = orig_idx in st.session_state.used_indices
+            with cols[col_idx]:
+                if st.button(
+                        char.upper(),
+                        key=f"btn_{orig_idx}_{row_start + col_idx}",
+                        disabled=is_used,
+                        use_container_width=True,
+                ):
+                    st.session_state.user_input += char
+                    st.session_state.used_indices.append(orig_idx)
+                    st.rerun()
+
+    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
 
     col_erase, col_submit = st.columns(2)
     with col_erase:
