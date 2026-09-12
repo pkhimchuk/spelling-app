@@ -13,7 +13,7 @@ st.set_page_config(
     page_title="Spelling Practice App", page_icon="✏️", layout="centered"
 )
 
-# Custom CSS: Forces horizontal tiles on mobile and styles the score/inputs cleanly
+# Custom CSS: Clean container styling
 st.markdown(
     """
     <style>
@@ -51,45 +51,6 @@ st.markdown(
     div[data-testid="stMetric"] [data-testid="stMetricDelta"] {
         color: #ffffff !important;
         font-weight: bold !important;
-    }
-
-    /* --- BULLETPROOF MOBILE HORIZONTAL TILE GRID --- */
-    @media (max-width: 1200px) {
-        div[data-testid="stHorizontalBlock"] {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            gap: 4px !important;
-            width: 100% !important;
-        }
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-            flex: 1 1 auto !important;
-            width: auto !important;
-            min-width: 0px !important;
-        }
-    }
-
-    /* --- KEYCAP TILE BUTTONS --- */
-    div[data-testid="stHorizontalBlock"] button {
-        font-size: 18px !important;
-        font-weight: 700 !important;
-        height: 48px !important;
-        min-height: 48px !important;
-        width: 100% !important;
-        padding: 0 !important;
-        border-radius: 8px !important;
-        border: 1px solid #cbd5e1 !important;
-        box-shadow: 0 2px 0 #94a3b8 !important;
-        background-color: #f8fafc !important;
-        color: #0f172a !important;
-    }
-
-    div[data-testid="stHorizontalBlock"] button:disabled {
-        background-color: #e2e8f0 !important;
-        color: #94a3b8 !important;
-        border-color: #cbd5e1 !important;
-        box-shadow: none !important;
-        opacity: 0.35 !important;
     }
 
     /* Review Screen typography */
@@ -249,6 +210,141 @@ def trigger_poop_rain():
     st.components.v1.html(js_code, height=0, width=0)
 
 
+# --- Native HTML/JS Touch Keyboard Component ---
+def render_letter_keyboard(scrambled_letters, used_indices):
+    tiles_data = [
+        {
+            "orig_idx": idx,
+            "char": char.upper(),
+            "used": idx in used_indices,
+        }
+        for idx, char in scrambled_letters
+    ]
+    tiles_json = json.dumps(tiles_data)
+
+    component_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 4px;
+            background: transparent;
+        }}
+        .keyboard-grid {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
+            margin-bottom: 12px;
+        }}
+        .tile {{
+            flex: 1 1 18%;
+            max-width: 19%;
+            height: 48px;
+            font-size: 20px;
+            font-weight: 700;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            background-color: #f8fafc;
+            color: #0f172a;
+            box-shadow: 0 2px 0 #94a3b8;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform 0.05s ease;
+        }}
+        .tile:active:not(.disabled) {{
+            transform: translateY(2px);
+            box-shadow: 0 0 0 #94a3b8;
+        }}
+        .tile.disabled {{
+            background-color: #e2e8f0;
+            color: #94a3b8;
+            border-color: #cbd5e1;
+            box-shadow: none;
+            opacity: 0.35;
+            cursor: default;
+            pointer-events: none;
+        }}
+        .actions-container {{
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }}
+        .action-btn {{
+            flex: 1;
+            height: 46px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            background-color: #ffffff;
+            color: #0f172a;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-tap-highlight-color: transparent;
+        }}
+        .action-btn.submit {{
+            background-color: #ff4b4b;
+            color: white;
+            border: none;
+        }}
+        .action-btn:active {{
+            opacity: 0.8;
+        }}
+    </style>
+    </head>
+    <body>
+
+    <div class="keyboard-grid" id="grid"></div>
+
+    <div class="actions-container">
+        <button class="action-btn" onclick="triggerAction('erase')">⌫ Erase</button>
+        <button class="action-btn submit" onclick="triggerAction('submit')">✅ Submit</button>
+    </div>
+
+    <script>
+        const tiles = {tiles_json};
+        const grid = document.getElementById('grid');
+
+        function render() {{
+            grid.innerHTML = '';
+            tiles.forEach(t => {{
+                const btn = document.createElement('div');
+                btn.className = 'tile' + (t.used ? ' disabled' : '');
+                btn.innerText = t.char;
+                if (!t.used) {{
+                    btn.onclick = () => {{
+                        window.parent.location.search = '?action=tap&char=' + encodeURIComponent(t.char.toLowerCase()) + '&idx=' + t.orig_idx;
+                    }};
+                }}
+                grid.appendChild(btn);
+            }});
+        }}
+
+        function triggerAction(act) {{
+            window.parent.location.search = '?action=' + act;
+        }}
+
+        render();
+    </script>
+    </body>
+    </html>
+    """
+    num_rows = (len(scrambled_letters) + 4) // 5
+    total_height = num_rows * 54 + 65
+    st.components.v1.html(component_html, height=total_height)
+
+
 # --- Load Data ---
 try:
     df = load_spelling_data()
@@ -309,62 +405,28 @@ if st.session_state.current_word_data is None:
 
 current_item = st.session_state.current_word_data
 target_word = str(current_item["Word"]).strip()
-phrase = f"Your next word is {target_word}, as in {current_item['AsIn']}"
 
-render_audio_player(phrase)
-
-st.markdown("---")
-
-# ---------------------------------------------------------
-# PHASE 1: INPUT PHASE
-# ---------------------------------------------------------
-if not st.session_state.submitted:
-    st.subheader("Your Input:")
-    st.text_input(
-        label="Spelled word",
-        value=st.session_state.user_input,
-        disabled=True,
-        label_visibility="collapsed",
-    )
-
-    st.write("**Tap letters to spell:**")
-
-    NUM_COLS = 5
-    scrambled = st.session_state.scrambled_letters
-
-    for row_start in range(0, len(scrambled), NUM_COLS):
-        chunk = scrambled[row_start: row_start + NUM_COLS]
-        cols = st.columns(NUM_COLS)
-        for col_idx, (orig_idx, char) in enumerate(chunk):
-            is_used = orig_idx in st.session_state.used_indices
-            with cols[col_idx]:
-                if st.button(
-                        char.upper(),
-                        key=f"btn_{orig_idx}_{row_start + col_idx}",
-                        disabled=is_used,
-                        use_container_width=True,
-                ):
-                    st.session_state.user_input += char
-                    st.session_state.used_indices.append(orig_idx)
-                    st.rerun()
-
-    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-
-    col_erase, col_submit = st.columns(2)
-    with col_erase:
-        if st.button("⌫ Erase", use_container_width=True):
-            if st.session_state.user_input:
-                st.session_state.user_input = st.session_state.user_input[:-1]
-                if st.session_state.used_indices:
-                    st.session_state.used_indices.pop()
-                st.rerun()
-
-    with col_submit:
-        if st.button(
-                "✅ Submit",
-                disabled=len(st.session_state.user_input) == 0,
-                use_container_width=True,
-        ):
+# --- Process Query Params from HTML Keyboard Component ---
+params = st.query_params
+if "action" in params:
+    action = params["action"]
+    if action == "tap":
+        char = params.get("char", "")
+        idx_str = params.get("idx", "-1")
+        try:
+            orig_idx = int(idx_str)
+            if orig_idx not in st.session_state.used_indices:
+                st.session_state.user_input += char
+                st.session_state.used_indices.append(orig_idx)
+        except ValueError:
+            pass
+    elif action == "erase":
+        if st.session_state.user_input:
+            st.session_state.user_input = st.session_state.user_input[:-1]
+            if st.session_state.used_indices:
+                st.session_state.used_indices.pop()
+    elif action == "submit":
+        if len(st.session_state.user_input) > 0 and not st.session_state.submitted:
             st.session_state.submitted = True
             is_correct = (
                     st.session_state.user_input.strip().lower()
@@ -382,7 +444,30 @@ if not st.session_state.submitted:
                 st.session_state.user_input,
                 is_correct,
             )
-            st.rerun()
+    st.query_params.clear()
+    st.rerun()
+
+phrase = f"Your next word is {target_word}, as in {current_item['AsIn']}"
+render_audio_player(phrase)
+
+st.markdown("---")
+
+# ---------------------------------------------------------
+# PHASE 1: INPUT PHASE
+# ---------------------------------------------------------
+if not st.session_state.submitted:
+    st.subheader("Your Input:")
+    st.text_input(
+        label="Spelled word",
+        value=st.session_state.user_input,
+        disabled=True,
+        label_visibility="collapsed",
+    )
+
+    st.write("**Tap letters to spell:**")
+    render_letter_keyboard(
+        st.session_state.scrambled_letters, st.session_state.used_indices
+    )
 
 # ---------------------------------------------------------
 # PHASE 2: REVIEW PHASE
