@@ -430,11 +430,17 @@ def show_results():
 
 # ----------------------------- Notes tab -----------------------------
 
+# ----------------------------- Notes tab -----------------------------
+
 def show_notes():
     st.subheader("Notes")
     st.image("notes.jpg", use_container_width=True)
-
-
+    st.markdown(
+        """
+        * **Flat ♭** - Lowers a note by a half-step  
+        * **Sharp ♯** - Raises a note by a half-step
+        """
+    )
 # ----------------------------- App -----------------------------
 
 try:
