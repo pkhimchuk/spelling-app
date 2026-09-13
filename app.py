@@ -278,13 +278,55 @@ def render_audio_player(text):
 
     document.getElementById("speak-btn").addEventListener("click", speakWord);
 
-    // Try immediately when the new word is rendered.
-    window.addEventListener("load", () => {{
-        setTimeout(speakWord, 150);
-    }});
+    // iPad/iPhone Safari may require a user gesture before allowing
+    // speechSynthesis to continue working automatically. Unlock it once
+    // on the parent page, then automatically speak each newly shown word.
+    function unlockSpeech() {{
+        if (!window.speechSynthesis) return;
+        try {{
+            const unlock = new SpeechSynthesisUtterance("");
+            unlock.volume = 0;
+            unlock.rate = 10;
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(unlock);
+            sessionStorage.setItem("spelling_speech_unlocked", "1");
+        }} catch (e) {{
+            // Ignore browsers that do not permit the unlock call.
+        }}
+    }}
 
-    // Some browsers initialise speech synthesis a little later.
-    setTimeout(speakWord, 400);
+    function speechIsUnlocked() {{
+        try {{
+            return sessionStorage.getItem("spelling_speech_unlocked") === "1";
+        }} catch (e) {{
+            return false;
+        }}
+    }}
+
+    function installSpeechUnlock() {{
+        const parentDoc = window.parent && window.parent.document;
+        if (!parentDoc) return;
+
+        const unlock = () => {{
+            unlockSpeech();
+            parentDoc.removeEventListener("pointerdown", unlock, true);
+            parentDoc.removeEventListener("touchstart", unlock, true);
+            parentDoc.removeEventListener("click", unlock, true);
+        }};
+
+        parentDoc.addEventListener("pointerdown", unlock, true);
+        parentDoc.addEventListener("touchstart", unlock, true);
+        parentDoc.addEventListener("click", unlock, true);
+    }}
+
+    function autoSpeak() {{
+        if (!speechIsUnlocked()) return;
+        setTimeout(speakWord, 200);
+    }}
+
+    installSpeechUnlock();
+    window.addEventListener("load", autoSpeak);
+    setTimeout(autoSpeak, 500);
     </script>
     """
 
