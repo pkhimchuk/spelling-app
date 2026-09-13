@@ -333,6 +333,49 @@ def render_audio_player(text):
     st.components.v1.html(html, height=58)
 
 
+
+def install_ipad_click_speech(next_word):
+    """Speak the upcoming word during the iPad user's Next Word tap."""
+    safe_word = json.dumps(str(next_word).strip())
+    html = f"""
+    <script>
+    (function() {{
+        const nextWord = {safe_word};
+        const parent = window.parent;
+        const ua = parent.navigator ? parent.navigator.userAgent : "";
+        const isIPad = /iPad/i.test(ua) ||
+            (parent.navigator && /Macintosh/i.test(ua) && parent.navigator.maxTouchPoints > 1);
+        if (!isIPad || !parent.speechSynthesis || !parent.document) return;
+
+        function attach() {{
+            const buttons = Array.from(parent.document.querySelectorAll("button"));
+            const button = buttons.find((el) =>
+                (el.innerText || "").replace(/\s+/g, " ").trim().includes("Next Word")
+            );
+            if (!button || button.dataset.ipadSpeechAttached === "1") return;
+
+            button.dataset.ipadSpeechAttached = "1";
+            button.addEventListener("click", function() {{
+                try {{
+                    parent.speechSynthesis.cancel();
+                    const utterance = new parent.SpeechSynthesisUtterance(nextWord);
+                    utterance.rate = 0.85;
+                    utterance.lang = "en-US";
+                    parent.speechSynthesis.speak(utterance);
+                }} catch (e) {{
+                    // Ignore unsupported browser speech errors.
+                }}
+            }}, true);
+        }}
+
+        attach();
+        setTimeout(attach, 100);
+        setTimeout(attach, 300);
+    }})();
+    </script>
+    """
+    st.components.v1.html(html, height=0)
+
 def trigger_poop_rain():
     st.components.v1.html(
         """
@@ -586,6 +629,11 @@ with practice_tab:
             st.session_state.play_result_animation = False
 
         st.divider()
+
+        # iPad/Safari: speak the upcoming word from the actual tap, before
+        # Streamlit reruns the page and loses the browser's user activation.
+        if st.session_state.word_queue:
+            install_ipad_click_speech(st.session_state.word_queue[0]["Word"])
 
         if st.button(
             "➡️ Next Word",
