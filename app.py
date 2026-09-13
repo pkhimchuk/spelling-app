@@ -33,7 +33,6 @@ st.markdown(
     div[data-testid="stMetric"] label,
     div[data-testid="stMetric"] [data-testid="stMetricValue"],
     div[data-testid="stMetric"] [data-testid="stMetricDelta"] { color: white !important; font-weight: 700 !important; }
-    .note-chart { width: 100%; overflow-x: auto; margin: 8px 0 4px; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -77,6 +76,7 @@ def load_spelling_data():
 
     for column in ["Batch", "Word", "AsIn", "Mnemonics"]:
         df[column] = df[column].fillna("").astype(str).str.strip()
+        df[column] = df[column].apply(lambda v: v[:-2] if v.endswith(".0") else v)
     return df
 
 
@@ -99,14 +99,10 @@ def append_result_to_sheet(batch_id, word, user_input, is_correct):
     try:
         attempt_col = ensure_attempt_id_column(results_sheet)
         if attempt_col <= len(base_row):
-            # This should not happen with the normal sheet layout, but avoid overwriting
-            # an existing result if a column has been positioned unexpectedly.
             results_sheet.insert_cols([[]], col=attempt_col)
         row = base_row + [attempt_id]
         results_sheet.append_row(row, value_input_option="RAW", insert_data_option="INSERT_ROWS")
-    except Exception as first_error:
-        # A timeout can be ambiguous: the server may have accepted the row before
-        # the client received the response. Check the id before retrying.
+    except Exception:
         try:
             values = results_sheet.get_all_values()
             attempt_ids = {r[attempt_col - 1] for r in values[1:] if len(r) >= attempt_col}
@@ -129,8 +125,6 @@ def append_result_to_sheet(batch_id, word, user_input, is_correct):
             )
             return False
 
-    # Confirm the attempt id is visible in the sheet. A short retry covers transient
-    # propagation delays without silently losing the attempt.
     for _ in range(3):
         try:
             values = results_sheet.get_all_values()
@@ -153,24 +147,60 @@ def load_results_data():
     if not values:
         return pd.DataFrame(columns=RESULT_COLUMNS)
 
-    headers = [str(v).strip() for v in values[0]]
-    rows = values[1:]
+    def norm(s):
+        return "".join(c for c in str(s).lower() if c.isalnum())
 
-    # Support the current 5-column format and the optional Attempt ID column.
-    header_map = {name: idx for idx, name in enumerate(headers)}
+    first_row = [str(v).strip() for v in values[0]]
+    header_indices = {}
+
+    for idx, col_name in enumerate(first_row):
+        n = norm(col_name)
+        if n in {"timestamp", "time", "date"}:
+            header_indices.setdefault("Timestamp", idx)
+        elif n in {"batchid", "batch", "batchno", "batchnum"}:
+            header_indices.setdefault("Batch ID", idx)
+        elif n in {"word"}:
+            header_indices.setdefault("Word", idx)
+        elif n in {"userinput", "input", "spelling", "answer"}:
+            header_indices.setdefault("User Input", idx)
+        elif n in {"correct", "iscorrect", "result", "status", "passed"}:
+            header_indices.setdefault("Correct", idx)
+
+    has_headers = "Batch ID" in header_indices or "Correct" in header_indices
+
+    if has_headers:
+        rows = values[1:]
+    else:
+        header_indices = {
+            "Timestamp": 0,
+            "Batch ID": 1,
+            "Word": 2,
+            "User Input": 3,
+            "Correct": 4,
+        }
+        rows = values
+
     data = []
     for row in rows:
         record = []
         for col in RESULT_COLUMNS:
-            idx = header_map.get(col)
-            record.append(row[idx] if idx is not None and idx < len(row) else "")
+            idx = header_indices.get(col)
+            val = row[idx] if idx is not None and idx < len(row) else ""
+            record.append(val)
         data.append(record)
 
     df = pd.DataFrame(data, columns=RESULT_COLUMNS)
+
     for column in ["Batch ID", "Word", "User Input"]:
         df[column] = df[column].fillna("").astype(str).str.strip()
+        df[column] = df[column].apply(lambda v: v[:-2] if v.endswith(".0") else v)
+
     df["Correct"] = (
-        df["Correct"].astype(str).str.strip().str.lower().isin({"true", "1", "yes", "y", "correct"})
+        df["Correct"]
+        .astype(str)
+        .str.strip()
+        .str.lower()
+        .isin({"true", "1", "1.0", "yes", "y", "correct", "t"})
     )
     return df
 
@@ -206,7 +236,6 @@ def build_word_queue(batch_df, batch_id):
         word = str(item["Word"]).strip()
         previous = stats.get(word.lower())
 
-        # Never-answered words are intentionally given a high fixed weight.
         if previous is None:
             weight = 2.5
         else:
@@ -275,7 +304,6 @@ def _clean_js_text(text):
 
 
 def render_audio_controls(word_text, mnemonic):
-    """Show word/mnemonic controls side by side and try to auto-read the word."""
     clean_word = _clean_js_text(word_text)
     clean_mnemonic = _clean_js_text(mnemonic)
     mnemonic_label = "🔊 Read Mnemonic" if mnemonic else "🔊 Mnemonic Empty"
@@ -363,11 +391,22 @@ def show_results():
         st.error(f"Could not load Results: {exc}")
         return
 
+    results = results[results["Batch ID"] != ""].copy()
+
     if results.empty:
         st.info("There are no recorded answers yet.")
         return
 
-    batches = sorted(results["Batch ID"].dropna().unique(), key=str)
+    def batch_sort_key(b):
+        try:
+            return (0, int(b))
+        except ValueError:
+            try:
+                return (0, float(b))
+            except ValueError:
+                return (1, str(b))
+
+    batches = sorted(results["Batch ID"].unique(), key=batch_sort_key)
     selected_batch = st.selectbox("Select Batch ID", batches, key="results_batch")
     batch = results[results["Batch ID"] == selected_batch].copy()
 
@@ -385,91 +424,15 @@ def show_results():
     )
     summary["Correct share"] = (summary["correct"] / summary["total"]).map(lambda v: f"{v:.0%}")
     summary["Answers"] = summary.apply(lambda r: f"{int(r['correct'])} / {int(r['total'])}", axis=1)
-    # Show weakest words first.
     summary = summary.sort_values(["correct", "Word"], ascending=[True, True])
     st.dataframe(summary[["Word", "Correct share", "Answers"]], use_container_width=True, hide_index=True)
 
 
 # ----------------------------- Notes tab -----------------------------
 
-def note_svg(octave):
-    notes = [(letter, octave) for letter in "CDEFGAB"]
-    # Diatonic position relative to E4 (bottom staff line).
-    letter_offsets = {"C": -2, "D": -1, "E": 0, "F": 1, "G": 2, "A": 3, "B": 4}
-    # Each octave adds seven diatonic steps.
-    positions = [letter_offsets[n] + 7 * (octave - 4) for n, _ in notes]
-
-    step_px = 7
-    staff_y = 105
-    x0 = 88
-    gap = 54
-    xs = [x0 + i * gap for i in range(len(notes))]
-    ys = [staff_y - pos * step_px for pos in positions]
-
-    min_y = min(ys) - 36
-    max_y = max(ys) + 44
-    shift = 0
-    if min_y < 20:
-        shift = 20 - min_y
-    if max_y + shift > 205:
-        shift -= (max_y + shift - 205)
-    ys = [y + shift for y in ys]
-    staff_top = staff_y + shift - 28
-    staff_bottom = staff_y + shift
-
-    parts = [
-        '<svg viewBox="0 0 470 220" width="100%" role="img" aria-label="Notes in octave">',
-        '<rect width="470" height="220" fill="white" rx="10"/>',
-    ]
-
-    for i in range(5):
-        y = staff_bottom - i * 7 * 1  # five staff lines, 7 px apart
-        parts.append(f'<line x1="60" x2="430" y1="{y}" y2="{y}" stroke="#222" stroke-width="1.5"/>')
-
-    # Ledger lines where needed.
-    for x, y, pos in zip(xs, ys, positions):
-        if pos < 0:
-            line_pos = 0
-            while line_pos > pos:
-                line_pos -= 2
-                ly = staff_bottom - line_pos * step_px
-                parts.append(f'<line x1="{x-13}" x2="{x+13}" y1="{ly}" y2="{ly}" stroke="#222" stroke-width="1.2"/>')
-        elif pos > 4:
-            line_pos = 6
-            while line_pos < pos:
-                ly = staff_bottom - line_pos * step_px
-                parts.append(f'<line x1="{x-13}" x2="{x+13}" y1="{ly}" y2="{ly}" stroke="#222" stroke-width="1.2"/>')
-                line_pos += 2
-
-    # Treble-clef placeholder glyph. On systems without a music font, the word remains clear.
-    parts.append(
-        f'<text x="26" y="{staff_bottom-3}" font-size="46" font-family="serif">𝄞</text>'
-    )
-
-    for letter, x, y in zip([n[0] for n in notes], xs, ys):
-        parts.append(f'<ellipse cx="{x}" cy="{y}" rx="8" ry="5.5" fill="#111"/>')
-        # Stem direction roughly follows the staff convention.
-        if y >= staff_bottom - 14:
-            parts.append(f'<line x1="{x+7}" x2="{x+7}" y1="{y-1}" y2="{y-29}" stroke="#111" stroke-width="2"/>')
-        else:
-            parts.append(f'<line x1="{x-7}" x2="{x-7}" y1="{y+1}" y2="{y+29}" stroke="#111" stroke-width="2"/>')
-        parts.append(f'<text x="{x}" y="198" text-anchor="middle" font-size="15" font-family="sans-serif">{letter}{octave}</text>')
-
-    parts.append('</svg>')
-    return ''.join(parts)
-
-
 def show_notes():
     st.subheader("Notes")
-    octave = st.selectbox(
-        "Select octave",
-        options=[4, 5, 6, 7],
-        index=1,
-        format_func=lambda o: f"C{o}–B{o}" + (" — default for a soprano/descant recorder" if o == 5 else ""),
-    )
-    st.caption("Default octave: C5–B5, the lower octave of a standard soprano (descant) recorder.")
-    st.markdown(f'<div class="note-chart">{note_svg(octave)}</div>', unsafe_allow_html=True)
-    st.caption("The diagram shows the written treble-clef positions for the seven natural notes in the selected octave.")
+    st.image("notes.jpg", use_container_width=True)
 
 
 # ----------------------------- App -----------------------------
