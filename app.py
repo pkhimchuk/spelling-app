@@ -250,131 +250,82 @@ def next_word(df):
 
 
 def render_audio_player(text):
-    safe_text = json.dumps(str(text).replace("\n", " "))
+    clean_text = (
+        text
+        .replace("\\", "\\\\")
+        .replace("'", "\\'")
+        .replace('"', '\\"')
+        .replace("\n", " ")
+    )
 
-    html = f"""
-    <div style="text-align:center;margin-bottom:10px;">
-        <button id="speak-btn"
-                style="width:100%;padding:10px 14px;border:0;border-radius:8px;
-                       background:#ff4b4b;color:white;font-size:17px;font-weight:700;
-                       cursor:pointer;">
+    html_code = f"""
+    <div style="
+        text-align: center;
+        margin-bottom: 10px;
+    ">
+
+        <button
+            id="speak-btn"
+            style="
+                width: 100%;
+                background-color: #ff4b4b;
+                color: white;
+                border: none;
+                padding: 12px 16px;
+                font-size: 18px;
+                font-weight: bold;
+                border-radius: 8px;
+                cursor: pointer;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            "
+        >
             🔊 Read Word Aloud
         </button>
+
     </div>
 
     <script>
-    const text = {safe_text};
 
     function speakWord() {{
-        if (!("speechSynthesis" in window)) return;
 
-        window.speechSynthesis.cancel();
+        if ('speechSynthesis' in window) {{
 
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 0.85;
-        utterance.lang = "en-US";
-        window.speechSynthesis.speak(utterance);
-    }}
-
-    document.getElementById("speak-btn").addEventListener("click", speakWord);
-
-    // iPad/iPhone Safari may require a user gesture before allowing
-    // speechSynthesis to continue working automatically. Unlock it once
-    // on the parent page, then automatically speak each newly shown word.
-    function unlockSpeech() {{
-        if (!window.speechSynthesis) return;
-        try {{
-            const unlock = new SpeechSynthesisUtterance("");
-            unlock.volume = 0;
-            unlock.rate = 10;
             window.speechSynthesis.cancel();
-            window.speechSynthesis.speak(unlock);
-            sessionStorage.setItem("spelling_speech_unlocked", "1");
-        }} catch (e) {{
-            // Ignore browsers that do not permit the unlock call.
+
+            var msg =
+                new SpeechSynthesisUtterance(
+                    '{clean_text}'
+                );
+
+            msg.rate = 0.85;
+            msg.lang = 'en-US';
+
+            window.speechSynthesis.speak(msg);
         }}
     }}
 
-    function speechIsUnlocked() {{
-        try {{
-            return sessionStorage.getItem("spelling_speech_unlocked") === "1";
-        }} catch (e) {{
-            return false;
+    document
+        .getElementById('speak-btn')
+        .addEventListener(
+            'click',
+            speakWord
+        );
+
+    window.addEventListener(
+        'load',
+        function() {{
+            speakWord();
         }}
-    }}
+    );
 
-    function installSpeechUnlock() {{
-        const parentDoc = window.parent && window.parent.document;
-        if (!parentDoc) return;
-
-        const unlock = () => {{
-            unlockSpeech();
-            parentDoc.removeEventListener("pointerdown", unlock, true);
-            parentDoc.removeEventListener("touchstart", unlock, true);
-            parentDoc.removeEventListener("click", unlock, true);
-        }};
-
-        parentDoc.addEventListener("pointerdown", unlock, true);
-        parentDoc.addEventListener("touchstart", unlock, true);
-        parentDoc.addEventListener("click", unlock, true);
-    }}
-
-    function autoSpeak() {{
-        if (!speechIsUnlocked()) return;
-        setTimeout(speakWord, 200);
-    }}
-
-    installSpeechUnlock();
-    window.addEventListener("load", autoSpeak);
-    setTimeout(autoSpeak, 500);
     </script>
     """
 
-    st.components.v1.html(html, height=58)
+    st.components.v1.html(
+        html_code,
+        height=60,
+    )
 
-
-
-def install_ipad_click_speech(next_word):
-    """Speak the upcoming word during the iPad user's Next Word tap."""
-    safe_word = json.dumps(str(next_word).strip())
-    html = f"""
-    <script>
-    (function() {{
-        const nextWord = {safe_word};
-        const parent = window.parent;
-        const ua = parent.navigator ? parent.navigator.userAgent : "";
-        const isIPad = /iPad/i.test(ua) ||
-            (parent.navigator && /Macintosh/i.test(ua) && parent.navigator.maxTouchPoints > 1);
-        if (!isIPad || !parent.speechSynthesis || !parent.document) return;
-
-        function attach() {{
-            const buttons = Array.from(parent.document.querySelectorAll("button"));
-            const button = buttons.find((el) =>
-                (el.innerText || "").replace(/\s+/g, " ").trim().includes("Next Word")
-            );
-            if (!button || button.dataset.ipadSpeechAttached === "1") return;
-
-            button.dataset.ipadSpeechAttached = "1";
-            button.addEventListener("click", function() {{
-                try {{
-                    parent.speechSynthesis.cancel();
-                    const utterance = new parent.SpeechSynthesisUtterance(nextWord);
-                    utterance.rate = 0.85;
-                    utterance.lang = "en-US";
-                    parent.speechSynthesis.speak(utterance);
-                }} catch (e) {{
-                    // Ignore unsupported browser speech errors.
-                }}
-            }}, true);
-        }}
-
-        attach();
-        setTimeout(attach, 100);
-        setTimeout(attach, 300);
-    }})();
-    </script>
-    """
-    st.components.v1.html(html, height=0)
 
 def trigger_poop_rain():
     st.components.v1.html(
@@ -629,11 +580,6 @@ with practice_tab:
             st.session_state.play_result_animation = False
 
         st.divider()
-
-        # iPad/Safari: speak the upcoming word from the actual tap, before
-        # Streamlit reruns the page and loses the browser's user activation.
-        if st.session_state.word_queue:
-            install_ipad_click_speech(st.session_state.word_queue[0]["Word"])
 
         if st.button(
             "➡️ Next Word",
